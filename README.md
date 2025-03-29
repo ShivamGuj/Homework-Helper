@@ -26,7 +26,10 @@ A Next.js application that helps students with their homework by providing smart
 
 ## Setup
 
-1. Clone the repository
+1. Clone the repository:
+   ```bash
+   git clone git@github.com:ShivamGuj/Homework-Helper.git
+   ```
 2. Install dependencies:
    ```bash
    npm install
