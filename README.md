@@ -92,6 +92,4 @@ The Homework Helper provides topic-specific resources that:
 - Provide explanations of how each resource helps solve the specific problem
 - Appear after the student has received their two hints
 
-## License
 
-MIT
