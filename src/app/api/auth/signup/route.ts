@@ -60,10 +60,29 @@ export async function POST(req: Request) {
 
     try {
       const hashedPassword = await bcrypt.hash(password, 10);
-      const user = await User.create({
+      console.log('Password hashed successfully:', { 
+        originalLength: password.length,
+        hashedLength: hashedPassword.length,
+        hashedPasswordSample: hashedPassword.substring(0, 10) + '...'
+      });
+      
+      const userData = {
         name,
         email,
         password: hashedPassword,
+      };
+      console.log('Creating user with data:', {
+        name,
+        email,
+        passwordLength: hashedPassword.length,
+        passwordDefined: !!hashedPassword
+      });
+      
+      const user = await User.create(userData);
+      console.log('User created successfully:', {
+        userId: user._id,
+        hasPassword: !!user.password,
+        passwordLength: user.password?.length
       });
 
       return NextResponse.json(
