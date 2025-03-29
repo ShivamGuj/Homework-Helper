@@ -781,7 +781,7 @@ const formatResourcesAsMessage = (resourceList: Resource[]) => {
                 </div>
                 <div className="flex flex-row justify-center gap-4 mb-4">
                   {/* Only show the resources button if resources haven't been fetched yet and hints used are 2 */}
-                  {currentChat.hintsUsed >= 2 && !chatHasResources() && !showResources ? (
+                  {currentChat.hintsUsed >= 2 && !chatHasResources() ? (
                     <button
                       onClick={handleGetResources}
                       disabled={isLoadingResources}
@@ -835,7 +835,7 @@ const formatResourcesAsMessage = (resourceList: Resource[]) => {
                     </button>
                     
                     {/* Resources button with updated styling */}
-                    {currentChat.hintsUsed >= 2 && !showResources ? (
+                    {currentChat.hintsUsed >= 2 && !chatHasResources() ? (
                       <button
                         onClick={handleGetResources}
                         disabled={isLoadingResources}
