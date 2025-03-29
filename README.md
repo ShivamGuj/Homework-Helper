@@ -4,7 +4,7 @@ A Next.js application that helps students with their homework by providing smart
 
 ## 🎥 Demo Video
 <video width="100%" controls>
-  <source src="https://raw.githubusercontent.com/your-username/your-repo/main/demo.mp4" type="video/mp4">
+  <source src="https://github.com/ShivamGuj/Homework-Helper/blob/main/Homework-helper.mp4" type="video/mp4">
 </video>
 
 ## Features
