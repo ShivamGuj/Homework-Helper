@@ -55,6 +55,7 @@ export default function ChatbotPage() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const messageEndRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const [chatToDelete, setChatToDelete] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -63,6 +64,7 @@ export default function ChatbotPage() {
   const [resources, setResources] = useState<Resource[]>([]);
   const [isLoadingResources, setIsLoadingResources] = useState(false);
   const [showResources, setShowResources] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -78,6 +80,12 @@ export default function ChatbotPage() {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
   }, [currentChat?.messages]);
+
+  useEffect(() => {
+    if (messageEndRef.current) {
+      messageEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [currentChat?.messages, isTyping]);
 
   // Close user menu when clicking outside
   useEffect(() => {
@@ -129,6 +137,30 @@ export default function ChatbotPage() {
     e.preventDefault();
     if (!message.trim() && !fileInputRef.current?.files?.[0]) return;
 
+    // Immediately add the user message to the UI
+    const userMessage: Message = {
+      role: 'user',
+      content: message,
+      timestamp: new Date()
+    };
+    
+    // Create a temporary chat if none exists
+    if (!currentChat) {
+      const tempChat: Chat = {
+        _id: 'temp-' + Date.now(),
+        messages: [userMessage],
+        hintsUsed: 0,
+        isCompleted: false
+      };
+      setCurrentChat(tempChat);
+    } else {
+      // Add to existing chat
+      setCurrentChat({
+        ...currentChat,
+        messages: [...currentChat.messages, userMessage]
+      });
+    }
+
     setIsLoading(true);
     const formData = new FormData();
     
@@ -136,8 +168,14 @@ export default function ChatbotPage() {
       formData.append('image', fileInputRef.current.files[0]);
     }
     formData.append('message', message);
-    if (currentChat?._id) {
+    if (currentChat?._id && !currentChat._id.startsWith('temp-')) {
       formData.append('chatId', currentChat._id);
+    }
+
+    // Clear the input immediately
+    setMessage('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
 
     try {
@@ -150,16 +188,11 @@ export default function ChatbotPage() {
       
       if (isValidChat(data.chat)) {
         setCurrentChat(data.chat);
-        if (!currentChat) {
+        if (!currentChat || currentChat._id.startsWith('temp-')) {
           setPastChats(prev => [...prev, data.chat]);
         }
       } else {
         console.error('Invalid chat data received:', data);
-      }
-      
-      setMessage('');
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
       }
     } catch (error) {
       console.error('Error sending message:', error);
@@ -170,6 +203,19 @@ export default function ChatbotPage() {
 
   const handleGetAnotherHint = async () => {
     if (!currentChat || currentChat.hintsUsed >= 2) return;
+
+    // Add the user's hint request message to the UI immediately
+    const hintRequestMessage: Message = {
+      role: 'user',
+      content: 'I need another hint for this problem.',
+      timestamp: new Date()
+    };
+
+    // Update the current chat with the user's hint request
+    setCurrentChat({
+      ...currentChat,
+      messages: [...currentChat.messages, hintRequestMessage]
+    });
 
     setIsLoading(true);
     try {
@@ -515,213 +561,240 @@ const formatResourcesAsMessage = (resourceList: Resource[]) => {
     return null;
   }
 
-  // Update the chat message rendering section for better design
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      {/* Navbar */}
-      <nav className="bg-white shadow-md p-4 sticky top-0 z-50">
-        <div className="container mx-auto flex justify-between items-center">
-          {/* Logo/Brand */}
-          <div className="flex items-center">
-            <button 
-              className="md:hidden mr-2 text-gray-600" 
-              onClick={() => setShowSidebar(!showSidebar)}
-            >
-              {showSidebar ? <FaTimes /> : <FaBars />}
-            </button>
-            <Link href="/" className="flex items-center">
-              <FaBook className="text-blue-600 text-2xl mr-2" />
-              <span className="font-bold text-xl bg-gradient-to-r from-blue-600 to-blue-800 text-transparent bg-clip-text">Homework Helper</span>
-            </Link>
+    <div className="flex h-screen overflow-hidden bg-white">
+      {/* Sidebar - Modern design similar to ChatGPT */}
+      <div 
+        className={`fixed md:relative inset-y-0 left-0 z-20 w-64 bg-gray-900 transform transition-transform duration-300 ease-in-out ${
+          showSidebar ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        }`}
+      >
+        {/* New Chat Button */}
+        <div className="p-3">
+          <button
+            onClick={handleNewChat}
+            className="flex items-center justify-center w-full gap-2 px-3 py-3 text-sm font-medium text-white transition-colors border border-white/20 rounded-md hover:bg-gray-700"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            New chat
+          </button>
+        </div>
+
+        {/* Chat History */}
+        <div className="px-3 py-2">
+          <h3 className="px-2 mb-2 text-xs font-medium text-gray-400 uppercase">Chat History</h3>
+          <div className="space-y-1 overflow-y-auto max-h-[calc(100vh-180px)]">
+            {pastChats.length === 0 ? (
+              <div className="px-2 py-3 text-sm text-gray-400">No conversations yet</div>
+            ) : (
+              pastChats.map((chat) => (
+                <div 
+                  key={chat._id}
+                  className={`group relative flex items-center p-2 rounded-md cursor-pointer hover:bg-gray-800 ${
+                    currentChat && chat._id === currentChat._id ? 'bg-gray-800' : ''
+                  }`}
+                  onClick={() => handleLoadChat(chat)}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-white truncate">
+                      {chat && chat.messages && chat.messages.length > 0 
+                        ? `${chat.messages[0]?.content?.slice(0, 25) || 'Chat'}`
+                        : 'New Chat'
+                      }...
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {new Date().toLocaleDateString()} • {chat.hintsUsed}/2 hints
+                    </div>
+                  </div>
+                  <button
+                    onClick={(e) => handleDeleteChat(chat._id, e)}
+                    className="p-1 text-gray-400 rounded-md opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-gray-700"
+                    title="Delete chat"
+                  >
+                    <FaTrash className="w-3 h-3" />
+                  </button>
+                </div>
+              ))
+            )}
           </div>
-          {/* User Info & Logout */}
-          <div className="relative" ref={userMenuRef}>
-            <button 
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center space-x-2 py-2 px-3 rounded-full hover:bg-blue-50 transition-colors"
-            >
-              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-blue-700 flex items-center justify-center text-white shadow-md">
+        </div>
+
+        {/* User Profile */}
+        <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-white/20">
+          <div 
+            className="flex items-center justify-between p-2 rounded-md cursor-pointer hover:bg-gray-800"
+            onClick={() => setShowUserMenu(!showUserMenu)}
+          >
+            <div className="flex items-center gap-2">
+              <div className="flex items-center justify-center w-8 h-8 text-white bg-blue-600 rounded-full">
                 {session?.user?.name ? session.user.name[0].toUpperCase() : '?'}
               </div>
-              <span className="hidden md:inline text-gray-700">{session?.user?.name || 'User'}</span>
-            </button>
-            {showUserMenu && (
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl py-1 z-10 transform transition-all duration-200 ease-in-out">
-                <div className="px-4 py-2 text-sm text-gray-700 border-b">
-                  {session?.user?.email}
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 transition-colors"
-                >
-                  <FaSignOutAlt className="mr-2 text-blue-600" /> Sign out
-                </button>
+              <div className="text-sm font-medium text-white truncate">
+                {session?.user?.name || 'User'}
               </div>
-            )}
+            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
           </div>
-        </div>
-      </nav>
-
-      {/* Main Content with Sidebar and Chat Area */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar - Updated with better styling */}
-        <div className={`fixed inset-y-0 left-0 transform ${showSidebar ? 'translate-x-0' : '-translate-x-full'} w-80 bg-white shadow-lg transition-transform duration-300 ease-in-out mt-16 md:mt-0 md:relative md:translate-x-0 z-10 border-r border-gray-200`}>
-          <div className="p-4 overflow-y-auto h-full flex flex-col">
-            <div className="flex justify-between items-center mb-6">
+          
+          {/* User Menu Dropdown */}
+          {showUserMenu && (
+            <div className="absolute bottom-16 left-3 right-3 p-2 bg-gray-800 rounded-md shadow-lg" ref={userMenuRef}>
+              <div className="px-3 py-2 text-xs text-gray-400 border-b border-gray-700">
+                {session?.user?.email}
+              </div>
               <button
-                onClick={handleNewChat}
-                className="py-3 px-4 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-lg hover:from-blue-600 hover:to-blue-800 transition-colors shadow-md flex-grow flex items-center justify-center"
+                onClick={handleLogout}
+                className="flex items-center w-full gap-2 px-3 py-2 text-sm text-white rounded-md hover:bg-gray-700"
               >
-                <FaPaperPlane className="mr-2" /> New Chat
-              </button>
-              <button 
-                onClick={refreshChats}
-                className="ml-2 p-3 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
-                title="Refresh chats"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
-                </svg>
+                <FaSignOutAlt className="w-4 h-4" /> Sign out
               </button>
             </div>
-            <h3 className="text-sm uppercase font-semibold text-gray-500 mb-3 pl-2 flex items-center">
-              <svg className="w-4 h-4 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-              </svg>
-              Your Conversations
-            </h3>
-            <div className="flex-1 overflow-y-auto pr-1 chat-list">
-              {pastChats.length === 0 ? (
-                <div className="text-center text-gray-500 mt-8 p-6 bg-blue-50 rounded-xl border border-blue-100">
-                  <svg className="w-12 h-12 mx-auto text-blue-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                  </svg>
-                  <p className="text-sm">No past chats found. Start a new conversation!</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {pastChats.map((chat) => (
-                    <div 
-                      key={chat._id}
-                      className="group relative rounded-xl overflow-hidden hover:bg-blue-50 transition-colors border border-gray-100 hover:border-blue-200"
-                      onClick={() => handleLoadChat(chat)}
-                    >
-                      <button 
-                        className={`w-full p-3 text-left flex flex-col ${
-                          currentChat && chat._id && currentChat._id === chat._id ? 'bg-blue-100 border-blue-300' : ''
-                        }`}
-                      >
-                        <div className="font-medium truncate text-gray-800">
-                          {chat && chat.messages && chat.messages.length > 0 
-                            ? `${chat.messages[0]?.content?.slice(0, 30) || 'Chat content'}`
-                            : 'New Chat'
-                          }...
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1 flex items-center">
-                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          {new Date().toLocaleDateString()} • {chat.hintsUsed} hint{chat.hintsUsed !== 1 ? 's' : ''}
-                        </div>
-                      </button>
-                      <button
-                        onClick={(e) => handleDeleteChat(chat._id, e)}
-                        className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity rounded-full hover:bg-red-50"
-                        title="Delete chat"
-                      >
-                        <FaTrash className="text-sm" />
-                      </button>
+          )}
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="relative flex flex-col flex-1 overflow-hidden">
+        {/* Mobile Header */}
+        <header className="flex items-center justify-between p-3 border-b border-gray-200 md:hidden">
+          <button 
+            onClick={() => setShowSidebar(!showSidebar)}
+            className="p-2 text-gray-600 rounded-md hover:bg-gray-100"
+          >
+            {showSidebar ? <FaTimes /> : <FaBars />}
+          </button>
+          <div className="font-semibold text-blue-600">Homework Helper</div>
+          <div className="w-8"></div> {/* Spacer for alignment */}
+        </header>
+
+        {/* Chat Messages Area */}
+        <div 
+          ref={chatContainerRef}
+          className="flex-1 overflow-y-auto bg-white"
+        >
+          {!currentChat ? (
+            <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+              <div className="w-16 h-16 mb-4 text-blue-600">
+                <FaBook className="w-full h-full" />
+              </div>
+              <h2 className="mb-2 text-2xl font-bold text-gray-800">Welcome to Homework Helper</h2>
+              <p className="max-w-md mb-6 text-gray-600">
+                Ask any homework question to get subtle hints that will guide you to the answer without giving it away.
+              </p>
+              <p className="text-sm text-gray-500">Type your question below or select a past conversation</p>
+            </div>
+          ) : (
+            <div className="max-w-3xl px-4 py-5 mx-auto">
+              {currentChat.messages.map((msg, index) => (
+                <div 
+                  key={index}
+                  className={`flex mb-6 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  {/* Avatar */}
+                  <div className={`flex ${msg.role === 'user' ? 'order-2 ml-3' : 'mr-3'}`}>
+                    <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
+                      msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'
+                    }`}>
+                      {msg.role === 'user' ? 'U' : 'A'}
                     </div>
-                  ))}
+                  </div>
+                  
+                  {/* Message Content */}
+                  <div className={`max-w-[85%] ${msg.role === 'user' ? 'order-1' : ''}`}>
+                    {/* Role Label */}
+                    <div className={`mb-1 text-xs font-medium ${
+                      msg.role === 'user' ? 'text-blue-600 text-right' : 'text-gray-600'
+                    }`}>
+                      {msg.role === 'user' ? 'You' : 'Assistant'}
+                    </div>
+                    
+                    {/* Message Bubble */}
+                    <div className={`p-3 rounded-lg ${
+                      msg.role === 'user' 
+                        ? 'bg-blue-600 text-white' 
+                        : isResourceMessage(msg.content)
+                          ? 'bg-green-50 border border-green-200'
+                          : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {/* Hint Label */}
+                      {msg.role === 'assistant' && !isResourceMessage(msg.content) && (
+                        <div className="flex items-center gap-1 mb-2 text-sm font-semibold text-blue-600">
+                          <FaLightbulb className="text-amber-500" /> Hint:
+                        </div>
+                      )}
+                      
+                      {/* Message Content */}
+                      <div 
+                        dangerouslySetInnerHTML={renderMessage(msg.content)} 
+                        className={`${
+                          isResourceMessage(msg.content) 
+                            ? 'resources-content' 
+                            : 'prose prose-sm max-w-none math-content'
+                        } ${
+                          msg.role === 'user' ? 'text-white prose-invert' : ''
+                        }`}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+              
+              {/* Typing Indicator */}
+              {isLoading && (
+                <div className="flex mb-6">
+                  <div className="flex mr-3">
+                    <div className="flex items-center justify-center w-8 h-8 text-gray-700 bg-gray-200 rounded-full">
+                      A
+                    </div>
+                  </div>
+                  <div className="p-3 bg-gray-100 rounded-lg">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+                    </div>
+                  </div>
                 </div>
               )}
+              
+              {/* This div helps with scrolling to the bottom */}
+              <div ref={messageEndRef}></div>
             </div>
-          </div>
+          )}
         </div>
 
-        {/* Main Chat Area - Enhanced with better styling */}
-        <div className="flex-1 flex flex-col bg-gray-50">
-          {/* Chat Messages */}
-          <div
-            ref={chatContainerRef}
-            className="flex-1 overflow-y-auto p-6 space-y-6"
-            style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="%239C92AC" fill-opacity="0.05" fill-rule="evenodd"%3E%3Ccircle cx="3" cy="3" r="3"/%3E%3Ccircle cx="13" cy="13" r="3"/%3E%3C/g%3E%3C/svg%3E")' }}
-          >
-            {!currentChat && (
-              <div className="flex flex-col items-center justify-center h-full text-center p-6">
-                <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-                  <FaBook className="text-4xl text-blue-500" />
-                </div>
-                <h2 className="text-2xl font-bold text-gray-700 mb-2">Welcome to Homework Helper</h2>
-                <p className="text-gray-500 max-w-md mb-6">
-                  Ask any homework question to get subtle hints that will guide you to the answer without giving it away.
-                </p>
-                <p className="text-sm text-gray-400">Type your question below or select a past conversation</p>
-              </div>
-            )}
-            {currentChat?.messages?.map((msg, index) => (
-              <div 
-                key={index}
-                className={`flex ${
-                  msg.role === 'user' ? 'justify-end' : 'justify-start'
-                }`}
-              >
-                <div
-                  className={`relative max-w-[80%] rounded-2xl p-4 ${
-                    msg.role === 'user'
-                      ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md'
-                      : 'bg-white shadow-md text-gray-800 border border-gray-200'
-                  }`}
-                >
-                  {msg.role === 'assistant' && !isResourceMessage(msg.content) && (
-                    <div className="font-semibold mb-2 flex items-center gap-2 text-blue-600">
-                      <FaLightbulb className="text-amber-500" /> Hint:
-                    </div>
-                  )}
-                  {/* Message sender indicator */}
-                  <div className={`absolute ${msg.role === 'user' ? '-right-1 -top-1' : '-left-1 -top-1'} bg-${msg.role === 'user' ? 'blue' : 'gray'}-500 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs shadow-md`}>
-                    {msg.role === 'user' ? 'U' : 'A'}
-                  </div>
-                  {/* Render message content */}
-                  <div 
-                    dangerouslySetInnerHTML={renderMessage(msg.content)} 
-                    className={`${isResourceMessage(msg.content) ? '' : 'math-content prose prose-sm max-w-none'}`} 
-                  />
-                  {/* Message timestamp */}
-                  <div className={`text-xs mt-1 text-right ${msg.role === 'user' ? 'text-blue-200' : 'text-gray-400'}`}>
-                    {new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Input Area - Enhanced styling */}
-          <div className="border-t bg-white p-4 shadow-md">
+        {/* Input Area */}
+        <div className="border-t border-gray-200 bg-white">
+          <div className="max-w-3xl px-4 py-3 mx-auto">
             {currentChat?.isCompleted ? (
               <div className="text-center p-4">
-                <div className="text-gray-600 mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg inline-flex items-center">
+                <div className="inline-flex items-center p-3 mb-4 text-gray-600 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <svg className="w-5 h-5 mr-2 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                   </svg>
                   You've used all available hints. Try solving the problem with the provided guidance.
                 </div>
-                <div className="flex flex-row gap-4 justify-center items-center mb-4">
+                <div className="flex flex-row justify-center gap-4 mb-4">
                   {/* Only show the resources button if resources haven't been fetched yet and hints used are 2 */}
                   {currentChat.hintsUsed >= 2 && !chatHasResources() && !showResources ? (
                     <button
                       onClick={handleGetResources}
                       disabled={isLoadingResources}
-                      className="py-3 px-6 bg-gradient-to-r from-green-500 to-green-700 text-white rounded-lg hover:from-green-600 hover:to-green-800 transition-colors shadow-md flex items-center gap-2 disabled:opacity-50"
+                      className="flex items-center gap-2 px-4 py-2 font-medium text-white transition-colors bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50"
                     >
                       {isLoadingResources ? (
                         <>
-                          <FaSpinner className="animate-spin mr-2" />
+                          <FaSpinner className="animate-spin" />
                           <span>Finding resources...</span>
                         </>
                       ) : (
                         <>
-                          <FaBook className="mr-2" />
+                          <FaBook />
                           <span>Find Learning Resources</span>
                         </>
                       )}
@@ -729,9 +802,12 @@ const formatResourcesAsMessage = (resourceList: Resource[]) => {
                   ) : null}
                   <button
                     onClick={handleNewChat}
-                    className="py-3 px-6 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-lg hover:from-blue-600 hover:to-blue-800 transition-colors shadow-md flex items-center gap-2"
+                    className="flex items-center gap-2 px-4 py-2 font-medium text-white transition-colors bg-blue-600 rounded-md hover:bg-blue-700"
                   >
-                    <FaPaperPlane className="mr-2" />
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
                     <span>New Problem</span>
                   </button>
                 </div>
@@ -739,11 +815,11 @@ const formatResourcesAsMessage = (resourceList: Resource[]) => {
             ) : (
               <>
                 {currentChat && currentChat.hintsUsed >= 1 ? (
-                  <div className="mb-4 flex justify-center gap-4">
+                  <div className="flex justify-center gap-4 mb-4">
                     <button
                       onClick={handleGetAnotherHint}
                       disabled={isLoading || currentChat.hintsUsed >= 2}
-                      className="py-3 px-6 bg-gradient-to-r from-amber-400 to-amber-600 text-white rounded-lg hover:from-amber-500 hover:to-amber-700 transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      className="flex items-center gap-2 px-4 py-2 font-medium text-white transition-colors bg-amber-500 rounded-md hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isLoading ? (
                         <>
@@ -763,7 +839,7 @@ const formatResourcesAsMessage = (resourceList: Resource[]) => {
                       <button
                         onClick={handleGetResources}
                         disabled={isLoadingResources}
-                        className="py-3 px-6 bg-gradient-to-r from-green-500 to-green-700 text-white rounded-lg hover:from-green-600 hover:to-green-800 transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="flex items-center gap-2 px-4 py-2 font-medium text-white transition-colors bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isLoadingResources ? (
                           <>
@@ -772,7 +848,7 @@ const formatResourcesAsMessage = (resourceList: Resource[]) => {
                           </>
                         ) : (
                           <>
-                            <FaBook className="mr-2" />
+                            <FaBook />
                             <span>Find Learning Resources</span>
                           </>
                         )}
@@ -780,7 +856,7 @@ const formatResourcesAsMessage = (resourceList: Resource[]) => {
                     ) : null}
                   </div>
                 ) : (
-                  <form onSubmit={handleSubmit} className="flex items-center gap-3">
+                  <form onSubmit={handleSubmit} className="flex items-center gap-2">
                     <input
                       type="file"
                       ref={fileInputRef}
@@ -793,45 +869,52 @@ const formatResourcesAsMessage = (resourceList: Resource[]) => {
                         }
                       }}
                     />
-                    <div className="relative">
-                      <button 
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="p-3 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-full transition-colors"
-                        title="Upload image"
-                        disabled={isProcessingImage}
-                      >
-                        {isProcessingImage ? (
-                          <FaSpinner className="text-xl animate-spin" />
-                        ) : (
-                          <FaImage className="text-xl" />
-                        )}
-                      </button>
-                      {isProcessingImage && (
-                        <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 whitespace-nowrap text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-md">
-                          Processing... {Math.round(ocrProgress)}%
-                        </div>
+                    <button 
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="p-2.5 text-gray-500 transition-colors rounded-md hover:text-blue-600 hover:bg-blue-50 self-end"
+                      title="Upload image"
+                      disabled={isProcessingImage}
+                    >
+                      {isProcessingImage ? (
+                        <FaSpinner className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <FaImage className="w-5 h-5" />
                       )}
-                    </div>
-                    <div className="flex-1 relative">
-                      <input
-                        type="text"
+                    </button>
+                    <div className="relative flex-1">
+                      <textarea
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
                         placeholder={isProcessingImage ? "Processing image..." : "Type your homework problem..."}
-                        className="w-full p-3 pl-4 pr-10 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50"
-                        disabled={isProcessingImage}
+                        className="w-full py-3 px-4 pr-12 text-gray-700 bg-white border border-gray-300 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        rows={1}
+                        disabled={isProcessingImage || isLoading}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            if (message.trim()) handleSubmit(e);
+                          }
+                        }}
+                        style={{ minHeight: '48px', maxHeight: '200px' }}
                       />
+                      {isProcessingImage && (
+                        <div className="absolute left-0 right-0 bottom-full mb-1 text-xs text-center bg-blue-100 text-blue-700 p-1 rounded">
+                          Processing image... {Math.round(ocrProgress)}%
+                        </div>
+                      )}
                       <button
                         type="submit"
                         disabled={isLoading || !message.trim()}
-                        className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 text-blue-600 hover:text-blue-800 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Send message"
+                        className="absolute right-3 bottom-1/2 transform translate-y-1/2 p-1.5 text-gray-400 transition-colors rounded-full hover:bg-blue-50 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isLoading ? (
-                          <FaSpinner className="animate-spin text-xl" />
+                          <FaSpinner className="w-5 h-5 animate-spin" />
                         ) : (
-                          <FaPaperPlane className="text-xl" />
+                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600">
+                            <line x1="22" y1="2" x2="11" y2="13"></line>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                          </svg>
                         )}
                       </button>
                     </div>
@@ -839,16 +922,21 @@ const formatResourcesAsMessage = (resourceList: Resource[]) => {
                 )}
               </>
             )}
+            
+            {/* Footer info */}
+            <div className="mt-2 text-xs text-center text-gray-500">
+              Homework Helper provides hints to guide your learning without giving away answers.
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Delete Confirmation Modal - Enhanced styling */}
+      {/* Delete Confirmation Modal - Modern design */}
       {chatToDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 backdrop-blur-sm">
-          <div className="bg-white rounded-xl p-6 max-w-md w-full m-4 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
+          <div className="w-full max-w-md p-6 m-4 bg-white rounded-lg shadow-2xl">
             <div className="flex items-center mb-4 text-red-500">
-              <svg className="w-8 h-8 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
               <h3 className="text-xl font-semibold">Delete Conversation</h3>
@@ -859,13 +947,13 @@ const formatResourcesAsMessage = (resourceList: Resource[]) => {
             <div className="flex justify-end gap-4">
               <button
                 onClick={cancelDelete}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
+                className="px-4 py-2 text-gray-700 transition-colors border border-gray-300 rounded-md hover:bg-gray-100"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmDelete}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                className="px-4 py-2 text-white transition-colors bg-red-600 rounded-md hover:bg-red-700"
               >
                 Delete
               </button>
