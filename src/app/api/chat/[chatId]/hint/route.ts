@@ -46,7 +46,7 @@ export async function POST(
       });
 
       // Get the user's original question from the first user message
-      const userMessages = chat.messages.filter(msg => msg.role === 'user');
+      const userMessages = chat.messages.filter((msg: { role: string; content: string; }) => msg.role === 'user');
       const userQuestion = userMessages.length > 0 ? userMessages[0].content : 'unknown problem';
 
       // Prepare the follow-up hint instruction with word limit and LaTeX formatting
@@ -58,7 +58,7 @@ export async function POST(
       This is my second hint request, so please provide more guidance than before (under 200 words), but still let me solve it on my own.`;
 
       // Format chat history for Gemini API
-      const chatHistory = chat.messages.map((message) => ({
+      const chatHistory = chat.messages.map((message: { role: string; content: string; }) => ({
         role: message.role === "user" ? "user" : "model",
         parts: [{ text: message.content }],
       }));
