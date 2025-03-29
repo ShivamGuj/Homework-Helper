@@ -3,7 +3,7 @@
 A Next.js application that helps students with their homework by providing smart hints using AI, without giving away complete solutions.
 
 ## 🎥 Demo Video
-[![Watch the video]](https://drive.google.com/file/d/1a-aRs3x8hBBg4YHiuW-VrFCZ9s4D6HPG/view?usp=sharing)
+[Click here to Watch the video](https://drive.google.com/file/d/1a-aRs3x8hBBg4YHiuW-VrFCZ9s4D6HPG/view?usp=sharing)
 
 ## Features
 
