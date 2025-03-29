@@ -1,36 +1,24 @@
-import { Inter } from 'next/font/google';
-import { getServerSession } from 'next-auth/next';
-import { SessionProvider } from '@/components/SessionProvider';
-import './globals.css';
-import { headers } from 'next/headers';
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
+import { NextAuthProvider } from "@/components/providers/NextAuthProvider";
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({ subsets: ["latin"] });
 
-export const metadata = {
-  title: 'Homework Helper',
-  description: 'Get smart hints for your homework problems',
+export const metadata: Metadata = {
+  title: "Homework Helper",
+  description: "AI-powered homework assistance",
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // Add try/catch to handle potential auth errors
-  let session = null;
-  try {
-    session = await getServerSession();
-  } catch (error) {
-    console.error("Error getting session:", error);
-  }
-  headers(); // This is needed to make the session work in app router
-
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        <SessionProvider session={session}>
-          {children}
-        </SessionProvider>
+        <NextAuthProvider>{children}</NextAuthProvider>
       </body>
     </html>
   );

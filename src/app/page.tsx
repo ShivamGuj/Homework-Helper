@@ -1,5 +1,8 @@
 'use client';
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic';
+
 import Link from 'next/link';
 import { useState, useRef, useEffect } from 'react';
 import { FaBook, FaRobot, FaSignOutAlt, FaChevronRight, FaLightbulb, FaGraduationCap, FaImage } from 'react-icons/fa';
@@ -91,7 +94,6 @@ export default function Home() {
         </div>
       </nav>
 
-      {/* Hero Section */}
       <div className="container mx-auto px-4 py-16">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
@@ -218,15 +220,14 @@ export default function Home() {
       </div>
 
       {/* Footer */}
-      <footer className="bg-white shadow-inner py-8">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="flex items-center gap-2 mb-4 md:mb-0">
-              <FaBook className="text-2xl text-blue-600" />
+      <footer className="bg-gray-50 border-t">
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center">
+            <div className="mb-2">
               <span className="text-lg font-bold">Homework Helper</span>
             </div>
             <div className="text-sm text-gray-500">
-              © {new Date().getFullYear()} Homework Helper. All rights reserved.
+              &copy; {new Date().getFullYear()} Homework Helper. All rights reserved.
             </div>
           </div>
         </div>

@@ -29,6 +29,10 @@ const ChatSchema = new Schema({
   isCompleted: {
     type: Boolean,
     default: false
+  },
+  resourcesShown: {
+    type: Boolean,
+    default: false
   }
 }, { timestamps: true });
 

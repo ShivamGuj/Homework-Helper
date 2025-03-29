@@ -1,5 +1,8 @@
 'use client';
 
+// Add this at the top
+export const dynamic = 'force-dynamic';
+
 import { useState } from 'react';
 import { FaBook, FaEnvelope, FaLock, FaUser, FaUserPlus } from 'react-icons/fa';
 import Link from 'next/link';

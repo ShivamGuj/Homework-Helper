@@ -1,5 +1,8 @@
 'use client';
 
+// Add this at the top
+export const dynamic = 'force-dynamic';
+
 import { signIn } from 'next-auth/react';
 import { useState } from 'react';
 import { FaBook, FaEnvelope, FaLock, FaSignInAlt } from 'react-icons/fa';

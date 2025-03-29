@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import connectDB from '@/lib/mongodb';
@@ -241,16 +243,17 @@ export async function POST(req: Request) {
       console.log("First hint was too long, truncated from", aiResponse.length, "to 100 characters");
     }
 
-    // When creating a new chat, explicitly set userId from our resolved value
+    // When creating a new chat or updating existing chat, preserve hasResources flag
     if (!chat) {
       try {
         chat = await Chat.create({
-          userId: userId, // Using our resolved userId
+          userId: userId,
           messages: [
             { role: 'user', content: messages[messages.length - 1].content },
             { role: 'assistant', content: processedResponse }
           ],
-          hintsUsed: 1
+          hintsUsed: 1,
+          hasResources: false
         });
         console.log('Created new chat with userId:', userId);
       } catch (error) {
@@ -264,6 +267,8 @@ export async function POST(req: Request) {
         throw error;
       }
     } else {
+      const hasResources = chat.hasResources || false; // Preserve existing hasResources value
+      
       chat.messages.push(
         { role: 'user', content: messages[messages.length - 1].content },
         { role: 'assistant', content: processedResponse }
@@ -272,6 +277,7 @@ export async function POST(req: Request) {
       if (chat.hintsUsed >= 2) {
         chat.isCompleted = true;
       }
+      chat.hasResources = hasResources; // Make sure we don't reset the hasResources flag
       await chat.save();
     }
 
